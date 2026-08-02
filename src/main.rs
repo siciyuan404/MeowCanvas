@@ -12,7 +12,10 @@ mod server;
 mod store;
 
 fn main() -> anyhow::Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // 初始化日志:默认 info,屏蔽 tao 事件循环的已知警告噪音
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .filter_module("tao::platform_impl::platform::event_loop::runner", log::LevelFilter::Error)
+        .init();
 
     // 数据目录:可执行文件同级 data/ (便携式桌面应用)
     let data_dir = resolve_data_dir();
