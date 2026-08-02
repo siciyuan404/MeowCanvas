@@ -7,7 +7,12 @@ use tao::event_loop::{ControlFlow, EventLoop};
 use tao::window::WindowBuilder;
 use wry::WebViewBuilder;
 
+mod ai;
 mod api;
+mod comfy;
+mod http_util;
+mod library;
+mod runninghub;
 mod server;
 mod store;
 
