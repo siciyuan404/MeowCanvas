@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: 构建检查 (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo 依赖
+        uses: Swatinem/rust-cache@v2
+
+      - name: 检查编译
+        run: cargo check --release
+
+      - name: 编译构建
+        run: cargo build --release --locked
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: meowcanvas-windows-ci
+          path: target/release/meowcanvas.exe
+          if-no-files-found: error
+          retention-days: 7
