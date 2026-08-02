@@ -17,12 +17,12 @@ pub async fn app_info() -> Response {
     ok(json!({
         "name": "MeowCanvas",
         "version": env!("CARGO_PKG_VERSION"),
-        "repo_url": "https://github.com/hero8152/Infinite-Canvas",
-        "version_url": "https://raw.githubusercontent.com/hero8152/Infinite-Canvas/main/VERSION",
+        "repo_url": "https://github.com/siciyuan404/MeowCanvas",
+        "version_url": "https://raw.githubusercontent.com/siciyuan404/MeowCanvas/main/VERSION",
         "sources": {
             "github": {
-                "tree_url": "https://api.github.com/repos/hero8152/Infinite-Canvas/git/trees/main?recursive=1",
-                "version_url": "https://raw.githubusercontent.com/hero8152/Infinite-Canvas/main/VERSION"
+                "tree_url": "https://api.github.com/repos/siciyuan404/MeowCanvas/git/trees/main?recursive=1",
+                "version_url": "https://raw.githubusercontent.com/siciyuan404/MeowCanvas/main/VERSION"
             }
         }
     }))

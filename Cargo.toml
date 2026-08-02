@@ -2,7 +2,7 @@
 name = "meowcanvas"
 version = "1.0.0"
 edition = "2021"
-description = "MeowCanvas - 无限画布 (Rust 复刻 Infinite-Canvas)"
+description = "MeowCanvas - 开源无限画布 AI 创作工具"
 authors = ["MeowCanvas"]
 
 [dependencies]

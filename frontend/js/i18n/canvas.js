@@ -5,7 +5,7 @@
         "canvas.noApiProvidersHint": { zh: "暂无 API 平台，请到 API 设置添加", en: "No API providers. Add one in API Settings." },
         "canvas.noImageModelsHint": { zh: "暂无生图模型，请到 API 设置添加", en: "No image models. Add some in API Settings." },
         "canvas.noModelsHint": { zh: "暂无模型，请到 API 设置添加", en: "No models. Add some in API Settings." },
-        "canvas.title": { zh: "无限画布", en: "Infinite Canvas" },
+        "canvas.title": { zh: "无限画布", en: "MeowCanvas" },
         "canvas.backToManager": { zh: "返回画布管理", en: "Back to canvas manager" },
         "canvas.untitled": { zh: "未命名画布", en: "Untitled Canvas" },
         "canvas.chooseFirst": { zh: "请选择或新建画布", en: "Choose or create a canvas" },

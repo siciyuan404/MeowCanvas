@@ -618,6 +618,7 @@
                 };
                 if (loraEnabled) {
                     const strength = parseFloat(document.getElementById('loraStrengthSlider').value);
+                    // ModelScope 平台上的公共 Klein 增强 LoRA 模型 ID
                     msPayload.loras = { 'Daniel8152/Klein-enhance': strength };
                 }
                 const response = await fetch('/api/ms/generate', {

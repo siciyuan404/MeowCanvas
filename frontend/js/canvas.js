@@ -13585,7 +13585,7 @@ function selectedWorkflowPayload(){
     const pickedNodes = [...ids].map(id => nodes.find(n => n.id === id)).filter(Boolean);
     const pickedConnections = connections.filter(c => ids.has(c.from) && ids.has(c.to)).map(c => ({...c}));
     return {
-        format:'infinite-canvas-workflow',
+        format:'meowcanvas-workflow',
         version:1,
         exported_at:Date.now(),
         nodes:serializableCanvasNodes(pickedNodes),
