@@ -186,6 +186,7 @@
         "api.tagAliyunBinding": { zh: "需绑定阿里云", en: "Requires Aliyun binding" },
         "api.tagGptImage2": { zh: "GPT image 2模型", en: "GPT image 2 Models" },
         "api.tagMusicModels": { zh: "音乐模型", en: "Music Models" },
+        "api.recommendEphoneSummary": { zh: "ePhone AI，OpenAI 兼容协议，支持 gpt-image-2-dev 文生图与 GPT-4o/GPT-5.6 对话，配置简单。", en: "ePhone AI with OpenAI-compatible protocol, supporting gpt-image-2-dev image generation and GPT-4o/GPT-5.6 chat." },
         "api.recommendOpenaiSummary": { zh: "OpenAI 官方直连，图像/视频/LLM 全覆盖，支持 Sora 2 视频与 GPT-Image-1 出图。", en: "Official OpenAI direct access covering image/video/LLM, with Sora 2 video and GPT-Image-1." },
         "api.recommendGeminiSummary": { zh: "Google 官方免费额度，Nano Banana 2 文生图与 Veo 3 视频生成。", en: "Google official free quota with Nano Banana 2 image and Veo 3 video generation." },
         "api.recommendBflSummary": { zh: "Black Forest Labs 官方 API，Flux Kontext 图像编辑，异步轮询机制。", en: "Black Forest Labs official API with Flux Kontext image editing and async polling." },

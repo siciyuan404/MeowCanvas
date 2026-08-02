@@ -296,6 +296,22 @@ const RECOMMENDED_APIS = [
         video_models:['agnes-video-v2.0']
     },
     {
+        id:'ephone',
+        name:'ePhone AI',
+        category:'allround',
+        base_url:'https://api.ephone.ai/v1',
+        protocol:'openai',
+        image_request_mode:'openai',
+        register_url:'https://platform.ephone.ai/',
+        tagKeys:['api.tagImageModels','api.tagVideoModels','api.tagLlmModels'],
+        icons:['IMG','VID','LLM'],
+        summaryKey:'api.recommendEphoneSummary',
+        advantages:['OpenAI 兼容协议', '支持 gpt-image-2-dev 文生图', '支持 GPT-4o / GPT-5.6 对话'],
+        image_models:['gpt-image-2-dev'],
+        chat_models:['gpt-4o', 'gpt-4o-mini', 'gpt-5.6'],
+        video_models:[]
+    },
+    {
         id:'openai',
         name:'OpenAI',
         category:'allround',
