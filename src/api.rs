@@ -192,6 +192,17 @@ pub async fn online_image() -> Response { not_configured("在线生图 online-im
 pub async fn angle_generate() -> Response { not_configured("角度控制 angle/generate") }
 pub async fn angle_poll() -> Response { not_configured("角度控制 poll_status") }
 pub async fn ms_generate() -> Response { not_configured("ModelScope ms/generate") }
+
+// 画布图像异步任务 (generator 节点通过此端点提交/轮询任务)
+pub async fn canvas_image_tasks_create() -> Response {
+    not_configured("画布图像生成")
+}
+pub async fn canvas_image_tasks_get() -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(json!({ "detail": "任务不存在或已过期" })),
+    ).into_response()
+}
 pub async fn providers_get() -> Response { ok(json!({ "providers": [] })) }
 pub async fn providers_test() -> Response { ok(json!({ "ok": false, "detail": "未配置" })) }
 pub async fn providers_fetch_models() -> Response { ok(json!({ "models": [] })) }

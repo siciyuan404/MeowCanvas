@@ -64,6 +64,9 @@ pub fn spawn_server(data_dir: &std::path::Path) -> anyhow::Result<Server> {
         .route("/api/angle/generate", post(api::angle_generate))
         .route("/api/angle/poll_status", get(api::angle_poll))
         .route("/api/ms/generate", post(api::ms_generate))
+        // ===== 画布图像异步任务 =====
+        .route("/api/canvas-image-tasks", post(api::canvas_image_tasks_create))
+        .route("/api/canvas-image-tasks/:id", get(api::canvas_image_tasks_get))
         .route("/api/providers", get(api::providers_get))
         .route("/api/providers/test-connection", post(api::providers_test))
         .route("/api/providers/fetch-models", post(api::providers_fetch_models))
@@ -74,7 +77,7 @@ pub fn spawn_server(data_dir: &std::path::Path) -> anyhow::Result<Server> {
         .route("/api/ai/upload", post(api::ai_upload))
         .route("/api/check-update", get(api::check_update))
         .route("/api/update-connectivity", get(api::check_update))
-        .fallback(get(index_html))
+        .fallback(get(api_fallback))
         .layer(cors)
         .with_state(state);
 
@@ -93,6 +96,19 @@ pub fn spawn_server(data_dir: &std::path::Path) -> anyhow::Result<Server> {
     });
 
     Ok(Server { port })
+}
+
+/// fallback: /api/* 开头的路径返回 404 JSON (让前端正确识别错误),
+/// 其他路径返回 index.html (SPA 路由)
+async fn api_fallback(req: axum::extract::Request) -> Response {
+    let path = req.uri().path();
+    if path.starts_with("/api/") {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "detail": format!("接口未实现: {}", path) })),
+        ).into_response();
+    }
+    index_html().await
 }
 
 async fn index_html() -> Response {
