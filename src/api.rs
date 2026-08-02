@@ -8,9 +8,24 @@ use axum::response::{IntoResponse, Json, Response};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Mutex as TokioMutex;
 
 pub type AppState = Arc<SharedStore>;
+
+// ===== 画布图像异步任务内存存储 (task_id -> ePhone 任务信息) =====
+#[derive(Clone)]
+struct TaskInfo {
+    ephone_task_id: String,
+    api_key: String,
+    base_url: String,
+}
+
+static TASK_STORE: OnceLock<TokioMutex<HashMap<String, TaskInfo>>> = OnceLock::new();
+
+fn task_store() -> &'static TokioMutex<HashMap<String, TaskInfo>> {
+    TASK_STORE.get_or_init(|| TokioMutex::new(HashMap::new()))
+}
 
 fn ok(body: Value) -> Response {
     (StatusCode::OK, Json(body)).into_response()
@@ -193,19 +208,255 @@ pub async fn angle_generate() -> Response { not_configured("角度控制 angle/g
 pub async fn angle_poll() -> Response { not_configured("角度控制 poll_status") }
 pub async fn ms_generate() -> Response { not_configured("ModelScope ms/generate") }
 
-// 画布图像异步任务 (generator 节点通过此端点提交/轮询任务)
-pub async fn canvas_image_tasks_create() -> Response {
-    not_configured("画布图像生成")
+// ===== Providers (用户配置的 API 供应商 + API Key 持久化) =====
+
+/// GET /api/providers - 返回 providers 列表,api_key 已掩码为 has_key / key_preview
+pub async fn providers_get(State(state): State<AppState>) -> Response {
+    let s = state.0.lock().unwrap();
+    let masked: Vec<Value> = s.list_providers().iter().map(mask_provider).collect();
+    ok(json!({ "providers": masked }))
 }
-pub async fn canvas_image_tasks_get() -> Response {
-    (
-        StatusCode::NOT_FOUND,
-        Json(json!({ "detail": "任务不存在或已过期" })),
-    ).into_response()
+
+/// PUT /api/providers - 保存 providers,处理 api_key 增删,返回掩码后的列表
+pub async fn providers_update(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    let providers_in = match body.as_array() {
+        Some(arr) => arr.clone(),
+        None => {
+            return (StatusCode::BAD_REQUEST, Json(json!({ "detail": "请求体必须是数组" }))).into_response();
+        }
+    };
+    let existing: HashMap<String, Value> = {
+        let s = state.0.lock().unwrap();
+        s.list_providers().into_iter()
+            .filter_map(|p| {
+                let id = p.get("id").and_then(|i| i.as_str())?.to_string();
+                Some((id, p))
+            })
+            .collect()
+    };
+    let mut merged: Vec<Value> = Vec::new();
+    for mut p in providers_in {
+        if let Some(id) = p.get("id").and_then(|i| i.as_str()).map(|s| s.to_string()) {
+            let clear_key = p.get("clear_key").and_then(|v| v.as_bool()).unwrap_or(false);
+            let new_key = p.get("api_key").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+            if let Some(old) = existing.get(&id) {
+                if clear_key {
+                    if let Some(obj) = p.as_object_mut() { obj.remove("api_key"); }
+                } else if new_key.is_none() {
+                    // 保留旧 key (前端未输入新 key 也未清除)
+                    if let Some(old_key) = old.get("api_key").and_then(|v| v.as_str()) {
+                        p["api_key"] = json!(old_key);
+                    }
+                }
+            }
+            // 移除前端临时字段,不持久化
+            if let Some(obj) = p.as_object_mut() {
+                obj.remove("clear_key");
+                obj.remove("clear_wallet_key");
+                obj.remove("clear_volcengine_access_key_id");
+                obj.remove("clear_volcengine_secret_access_key");
+                obj.remove("_clearKey");
+                obj.remove("_clearWalletKey");
+            }
+            merged.push(p);
+        }
+    }
+    let mut s = state.0.lock().unwrap();
+    s.update_providers(merged);
+    let masked: Vec<Value> = s.list_providers().iter().map(mask_provider).collect();
+    ok(json!({ "providers": masked }))
 }
-pub async fn providers_get() -> Response { ok(json!({ "providers": [] })) }
+
+/// 掩码 provider: 移除敏感字段,替换为 has_key / key_preview / key_env
+fn mask_provider(p: &Value) -> Value {
+    let mut m = p.clone();
+    let has_key = m.get("api_key").and_then(|v| v.as_str()).map_or(false, |s| !s.is_empty());
+    let has_wallet_key = m.get("wallet_api_key").and_then(|v| v.as_str()).map_or(false, |s| !s.is_empty());
+    let key_preview = mask_key_preview(m.get("api_key").and_then(|v| v.as_str()).unwrap_or(""));
+    if let Some(obj) = m.as_object_mut() {
+        obj.remove("api_key");
+        obj.remove("wallet_api_key");
+        obj.remove("volcengine_access_key_id");
+        obj.remove("volcengine_secret_access_key");
+    }
+    m["has_key"] = json!(has_key);
+    m["has_wallet_key"] = json!(has_wallet_key);
+    m["key_preview"] = json!(key_preview);
+    m["key_env"] = json!("providers.json");
+    m
+}
+
+fn mask_key_preview(key: &str) -> String {
+    if key.is_empty() { return String::new(); }
+    let len = key.len();
+    if len <= 8 { return "****".to_string(); }
+    let prefix = &key[..4];
+    let suffix = &key[len - 4..];
+    format!("{}****{}", prefix, suffix)
+}
+
 pub async fn providers_test() -> Response { ok(json!({ "ok": false, "detail": "未配置" })) }
 pub async fn providers_fetch_models() -> Response { ok(json!({ "models": [] })) }
+
+// ===== 画布图像异步任务 (ePhone gpt-image-2-dev 集成) =====
+
+/// POST /api/canvas-image-tasks - 提交图像生成任务到 ePhone 异步任务 API
+pub async fn canvas_image_tasks_create(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    let provider_id = body.get("provider_id").and_then(|v| v.as_str()).unwrap_or("");
+    let prompt = body.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
+    let model = body.get("model").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).unwrap_or("gpt-image-2-dev");
+    let size = body.get("size").and_then(|v| v.as_str()).filter(|s| !s.is_empty() && *s != "auto");
+    let quality = body.get("quality").and_then(|v| v.as_str()).filter(|s| !s.is_empty() && *s != "auto");
+    let n = body.get("n").and_then(|v| v.as_i64()).filter(|&x| x > 0);
+
+    if prompt.is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(json!({ "detail": "prompt 不能为空" }))).into_response();
+    }
+
+    // 查找 provider,获取 api_key 和 base_url
+    let (api_key, base_url) = {
+        let s = state.0.lock().unwrap();
+        match s.get_provider(provider_id) {
+            Some(p) => {
+                let key = p.get("api_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let url = p.get("base_url").and_then(|v| v.as_str())
+                    .unwrap_or("https://api.ephone.ai/v1").to_string();
+                (key, url)
+            }
+            None => {
+                return (StatusCode::BAD_REQUEST, Json(json!({
+                    "detail": format!("未找到 provider: {}", provider_id)
+                }))).into_response();
+            }
+        }
+    };
+
+    if api_key.is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(json!({
+            "detail": "该 provider 未配置 API Key,请在 API 设置中添加。"
+        }))).into_response();
+    }
+
+    // 构建 ePhone 异步任务请求体
+    let mut input = json!({ "prompt": prompt });
+    if let Some(sz) = size { input["size"] = json!(sz); }
+    if let Some(q) = quality { input["quality"] = json!(q); }
+    if let Some(nn) = n { input["n"] = json!(nn); }
+
+    let submit_body = json!({ "model": model, "input": input });
+    let submit_url = format!("{}/task/submit", base_url.trim_end_matches('/'));
+
+    let client = reqwest::Client::new();
+    let resp = match client
+        .post(&submit_url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&submit_body)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            return (StatusCode::BAD_GATEWAY, Json(json!({
+                "detail": format!("调用 ePhone API 失败: {e}")
+            }))).into_response();
+        }
+    };
+
+    let status = resp.status();
+    let body_text = resp.text().await.unwrap_or_default();
+    let body_json: Value = serde_json::from_str(&body_text).unwrap_or_else(|_| json!({}));
+
+    if !status.is_success() {
+        let detail = body_json.get("error").or_else(|| body_json.get("detail"))
+            .and_then(|v| v.as_str()).unwrap_or(&body_text);
+        return (StatusCode::BAD_GATEWAY, Json(json!({
+            "detail": format!("ePhone 提交失败: {}", detail)
+        }))).into_response();
+    }
+
+    let ephone_task_id = match body_json.get("id").and_then(|v| v.as_str()) {
+        Some(id) => id.to_string(),
+        None => {
+            return (StatusCode::BAD_GATEWAY, Json(json!({
+                "detail": format!("ePhone 返回缺少 task id: {}", body_text)
+            }))).into_response();
+        }
+    };
+
+    // 生成我们的 task_id,映射到 ePhone task_id
+    let our_task_id = uuid::Uuid::new_v4().to_string();
+    task_store().lock().await.insert(our_task_id.clone(), TaskInfo {
+        ephone_task_id,
+        api_key,
+        base_url,
+    });
+
+    ok(json!({ "task_id": our_task_id }))
+}
+
+/// GET /api/canvas-image-tasks/:id - 轮询 ePhone 任务状态
+pub async fn canvas_image_tasks_get(
+    Path(task_id): Path<String>,
+) -> Response {
+    let info = {
+        let store = task_store().lock().await;
+        store.get(&task_id).cloned()
+    };
+    let info = match info {
+        Some(i) => i,
+        None => {
+            return (StatusCode::NOT_FOUND, Json(json!({
+                "detail": "任务不存在或已过期"
+            }))).into_response();
+        }
+    };
+
+    let poll_url = format!("{}/task/{}", info.base_url.trim_end_matches('/'), info.ephone_task_id);
+    let client = reqwest::Client::new();
+    let resp = match client
+        .get(&poll_url)
+        .header("Authorization", format!("Bearer {}", info.api_key))
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            return (StatusCode::BAD_GATEWAY, Json(json!({
+                "detail": format!("查询 ePhone 任务状态失败: {e}")
+            }))).into_response();
+        }
+    };
+
+    let body_text = resp.text().await.unwrap_or_default();
+    let body_json: Value = serde_json::from_str(&body_text).unwrap_or_else(|_| json!({}));
+
+    let status = body_json.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+    match status {
+        "completed" => {
+            let outputs = body_json.get("outputs").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+            let images: Vec<Value> = outputs.iter().map(|url| json!({ "url": url })).collect();
+            ok(json!({
+                "status": "succeeded",
+                "result": { "images": images }
+            }))
+        }
+        "failed" => {
+            let error = body_json.get("error").and_then(|v| v.as_str()).unwrap_or("生成失败");
+            ok(json!({ "status": "failed", "error": error }))
+        }
+        _ => {
+            // queued / in_progress -> 前端继续轮询
+            ok(json!({ "status": status }))
+        }
+    }
+}
 pub async fn conversations() -> Response { ok(json!({ "conversations": [] })) }
 pub async fn chat() -> Response { not_configured("GPT 对话") }
 pub async fn chat_stream() -> Response { not_configured("GPT 流式对话") }

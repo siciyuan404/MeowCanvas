@@ -67,7 +67,7 @@ pub fn spawn_server(data_dir: &std::path::Path) -> anyhow::Result<Server> {
         // ===== 画布图像异步任务 =====
         .route("/api/canvas-image-tasks", post(api::canvas_image_tasks_create))
         .route("/api/canvas-image-tasks/:id", get(api::canvas_image_tasks_get))
-        .route("/api/providers", get(api::providers_get))
+        .route("/api/providers", get(api::providers_get).put(api::providers_update))
         .route("/api/providers/test-connection", post(api::providers_test))
         .route("/api/providers/fetch-models", post(api::providers_fetch_models))
         .route("/api/conversations", get(api::conversations).post(api::conversations))

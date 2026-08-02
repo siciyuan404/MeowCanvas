@@ -9,6 +9,7 @@ use uuid::Uuid;
 pub struct Store {
     canvases: Vec<Value>,
     projects: Vec<Value>,
+    providers: Vec<Value>,
     data_dir: PathBuf,
 }
 
@@ -19,10 +20,12 @@ impl Store {
         let mut s = Store {
             canvases: Vec::new(),
             projects: Vec::new(),
+            providers: Vec::new(),
             data_dir: data_dir.to_path_buf(),
         };
         s.canvases = s.load("canvases.json");
         s.projects = s.load("projects.json");
+        s.providers = s.load("providers.json");
         // 首次启动时创建一个默认项目,避免画布列表空空荡荡
         if s.projects.is_empty() {
             let now = now_ms();
@@ -55,6 +58,7 @@ impl Store {
     }
     fn persist_canvases(&self) { self.save("canvases.json", &self.canvases); }
     fn persist_projects(&self) { self.save("projects.json", &self.projects); }
+    fn persist_providers(&self) { self.save("providers.json", &self.providers); }
 
     // ===== 画布 CRUD =====
 
@@ -171,6 +175,24 @@ impl Store {
         let changed = self.projects.len() != before;
         if changed { self.persist_projects(); self.persist_canvases(); }
         changed
+    }
+
+    // ===== Providers CRUD (保存用户配置的 API 供应商及 API Key) =====
+
+    /// 列出所有 providers (原样返回,包含 api_key)
+    pub fn list_providers(&self) -> Vec<Value> { self.providers.clone() }
+
+    /// 整体覆盖 providers 列表 (前端 PUT /api/providers 时调用)
+    pub fn update_providers(&mut self, new_providers: Vec<Value>) {
+        self.providers = new_providers;
+        self.persist_providers();
+    }
+
+    /// 按 id 查找 provider
+    pub fn get_provider(&self, id: &str) -> Option<Value> {
+        self.providers.iter()
+            .find(|p| p.get("id").and_then(|i| i.as_str()) == Some(id))
+            .cloned()
     }
 }
 
